@@ -5254,7 +5254,7 @@ Object.assign( ARjs.Context.prototype, THREE.EventDispatcher.prototype );
 // ARjs.Context.baseURL = '../'
 // default to github page
 ARjs.Context.baseURL = 'https://jeromeetienne.github.io/AR.js/three.js/'
-ARjs.Context.REVISION = '1.6.0'
+ARjs.Context.REVISION = '1.6.2'
 
 
 
@@ -5797,7 +5797,10 @@ ARjs.Source = THREEx.ArToolkitSource = function(parameters){
 		sourceType : 'webcam',
 		// url of the source - valid if sourceType = image|video
 		sourceUrl : null,
-		
+
+		// Device id of the camera to use (optional)
+		deviceId : null,
+
 		// resolution of at which we initialize in the source image
 		sourceWidth: 640,
 		sourceHeight: 480,
@@ -5979,7 +5982,14 @@ ARjs.Source.prototype._initSourceWebcam = function(onReady, onError) {
 					// max: 1080
 				}
 		  	}
-                }
+		}
+
+		if (null !== _this.parameters.deviceId) {
+			userMediaConstraints.video.deviceId = {
+				exact: _this.parameters.deviceId
+			};
+		}
+
 		// get a device which satisfy the constraints
 		navigator.mediaDevices.getUserMedia(userMediaConstraints).then(function success(stream) {
 			// set the .src of the domElement
@@ -6647,7 +6657,203 @@ ARjs.Anchor = function(arSession, markerParameters){
 		}
 	}
 }
+// @namespace
+var ARjs = ARjs || {}
 
+/**
+ * Create an debug UI for an ARjs.Anchor
+ * 
+ * @param {ARjs.Anchor} arAnchor - the anchor to user
+ */
+ARjs.SessionDebugUI = function(arSession, tangoPointCloud){
+	var trackingBackend = arSession.arContext.parameters.trackingBackend
+
+	this.domElement = document.createElement('div')
+	this.domElement.style.color = 'rgba(0,0,0,0.9)'
+	this.domElement.style.backgroundColor = 'rgba(127,127,127,0.5)'
+	this.domElement.style.display = 'inline-block'
+	this.domElement.style.padding = '0.5em'
+	this.domElement.style.margin = '0.5em'
+	this.domElement.style.textAlign = 'left'
+
+	//////////////////////////////////////////////////////////////////////////////
+	//		add title
+	//////////////////////////////////////////////////////////////////////////////
+	// var domElement = document.createElement('div')
+	// domElement.style.display = 'block'
+	// domElement.style.fontWeight = 'bold'
+	// domElement.style.fontSize = '120%'
+	// this.domElement.appendChild(domElement)
+	// domElement.innerHTML = 'AR.js Session Debug'
+
+	//////////////////////////////////////////////////////////////////////////////
+	//		current-tracking-backend
+	//////////////////////////////////////////////////////////////////////////////
+
+	var domElement = document.createElement('span')
+	domElement.style.display = 'block'
+	this.domElement.appendChild(domElement)
+	domElement.innerHTML = '<b>trackingBackend</b> : ' +trackingBackend
+	
+	//////////////////////////////////////////////////////////////////////////////
+	//		augmented-websites
+	//////////////////////////////////////////////////////////////////////////////
+
+	if( ARjs.SessionDebugUI.AugmentedWebsiteURL ){
+		var domElement = document.createElement('a')
+		domElement.innerHTML = 'Share on augmented-websites'
+		domElement.style.display = 'block'
+		// domElement.setAttribute('target', '_blank')
+		domElement.href = ARjs.SessionDebugUI.AugmentedWebsiteURL + '?'+location.href
+		this.domElement.appendChild(domElement)						
+	}
+
+	//////////////////////////////////////////////////////////////////////////////
+	//		toggle-point-cloud
+	//////////////////////////////////////////////////////////////////////////////
+
+	if( trackingBackend === 'tango' && tangoPointCloud ){
+		var domElement = document.createElement('button')
+		this.domElement.appendChild(domElement)
+
+		domElement.id= 'buttonTangoTogglePointCloud'
+		domElement.innerHTML = 'toggle-point-cloud'
+		domElement.href='javascript:void(0)'
+
+		domElement.addEventListener('click', function(){
+			var scene = arSession.parameters.scene
+	// TODO how tangoPointCloud, get connected here ???
+	// in arguments simply ?
+			if( tangoPointCloud.object3d.parent ){
+				scene.remove(tangoPointCloud.object3d)
+			}else{
+				scene.add(tangoPointCloud.object3d)			
+			}
+		})
+	}
+}
+
+/**
+ * Url of augmented-website service - if === '' then dont include augmented-website link
+ * @type {String}
+ */
+ARjs.SessionDebugUI.AugmentedWebsiteURL = 'https://webxr.io/augmented-website'
+
+//////////////////////////////////////////////////////////////////////////////
+//		ARjs.AnchorDebugUI
+//////////////////////////////////////////////////////////////////////////////
+
+
+
+
+/**
+ * Create an debug UI for an ARjs.Anchor
+ * 
+ * @param {ARjs.Anchor} arAnchor - the anchor to user
+ */
+ARjs.AnchorDebugUI = function(arAnchor){
+	var _this = this 
+	var arSession = arAnchor.arSession
+	var trackingBackend = arSession.arContext.parameters.trackingBackend
+	
+	this.domElement = document.createElement('div')
+	this.domElement.style.color = 'rgba(0,0,0,0.9)'
+	this.domElement.style.backgroundColor = 'rgba(127,127,127,0.5)'
+	this.domElement.style.display = 'inline-block'
+	this.domElement.style.padding = '0.5em'
+	this.domElement.style.margin = '0.5em'
+	this.domElement.style.textAlign = 'left'
+
+	//////////////////////////////////////////////////////////////////////////////
+	//		add title
+	//////////////////////////////////////////////////////////////////////////////
+
+	// var domElement = document.createElement('div')
+	// domElement.style.display = 'block'
+	// domElement.style.fontWeight = 'bold'
+	// domElement.style.fontSize = '120%'
+	// this.domElement.appendChild(domElement)
+	// domElement.innerHTML = 'Anchor Marker Debug'
+
+	//////////////////////////////////////////////////////////////////////////////
+	//		current-tracking-backend
+	//////////////////////////////////////////////////////////////////////////////
+
+	var domElement = document.createElement('span')
+	domElement.style.display = 'block'
+	this.domElement.appendChild(domElement)
+	domElement.innerHTML = '<b>markersAreaEnabled</b> :' +arAnchor.parameters.markersAreaEnabled
+
+	//////////////////////////////////////////////////////////////////////////////
+	//		toggle-marker-helper
+	//////////////////////////////////////////////////////////////////////////////
+
+	if( arAnchor.parameters.markersAreaEnabled ){
+		var domElement = document.createElement('button')
+		domElement.style.display = 'block'
+		this.domElement.appendChild(domElement)
+
+		domElement.id= 'buttonToggleMarkerHelpers'
+		domElement.innerHTML = 'toggle-marker-helper'
+		domElement.href='javascript:void(0)'
+
+		var subMarkerHelpersVisible = false
+		domElement.addEventListener('click', function(){
+			subMarkerHelpersVisible = subMarkerHelpersVisible ? false : true
+			arAnchor.markersArea.setSubMarkersVisibility(subMarkerHelpersVisible)		
+		})
+	}
+	
+	//////////////////////////////////////////////////////////////////////////////
+	//		Learn-new-marker-area
+	//////////////////////////////////////////////////////////////////////////////
+
+	if( arAnchor.parameters.markersAreaEnabled ){
+		var domElement = document.createElement('button')
+		domElement.style.display = 'block'
+		this.domElement.appendChild(domElement)
+
+		domElement.id = 'buttonMarkersAreaLearner'
+		domElement.innerHTML = 'Learn-new-marker-area'
+		domElement.href ='javascript:void(0)'
+
+		domElement.addEventListener('click', function(){
+			if( ARjs.AnchorDebugUI.MarkersAreaLearnerURL !== null ){
+				var learnerURL = ARjs.AnchorDebugUI.MarkersAreaLearnerURL
+			}else{
+				var learnerURL = ARjs.Context.baseURL + 'examples/multi-markers/examples/learner.html'
+			}
+			ARjs.MarkersAreaUtils.navigateToLearnerPage(learnerURL, trackingBackend)
+		})	
+	}
+
+	//////////////////////////////////////////////////////////////////////////////
+	//		Reset-marker-area
+	//////////////////////////////////////////////////////////////////////////////
+
+	if( arAnchor.parameters.markersAreaEnabled ){
+		var domElement = document.createElement('button')
+		domElement.style.display = 'block'
+		this.domElement.appendChild(domElement)
+
+		domElement.id = 'buttonMarkersAreaReset'
+		domElement.innerHTML = 'Reset-marker-area'
+		domElement.href ='javascript:void(0)'
+
+		domElement.addEventListener('click', function(){
+			ARjs.MarkersAreaUtils.storeDefaultMultiMarkerFile(trackingBackend)
+			location.reload()
+		})
+	}
+}
+
+/**
+ * url for the markers-area learner. if not set, take the default one
+ * @type {String}
+ */
+ARjs.AnchorDebugUI.MarkersAreaLearnerURL = null
+// @namespace
+var ARjs = ARjs || {}
 
 /**
  * Create an anchor in the real world
@@ -8114,6 +8320,22 @@ AFRAME.registerComponent('arjs-anchor', {
 			// it is now considered isReady
 			_this.isReady = true
 
+			//////////////////////////////////////////////////////////////////////////////
+			//		honor .debugUIEnabled
+			//////////////////////////////////////////////////////////////////////////////
+			if( arjsSystem.data.debugUIEnabled ){
+				// get or create containerElement
+				var containerElement = document.querySelector('#arjsDebugUIContainer')
+				if( containerElement === null ){
+					containerElement = document.createElement('div')
+					containerElement.id = 'arjsDebugUIContainer'
+					containerElement.setAttribute('style', 'position: fixed; bottom: 10px; width:100%; text-align: center; z-index: 1; color: grey;')
+					document.body.appendChild(containerElement)
+				}
+				// create anchorDebugUI
+				var anchorDebugUI = new ARjs.AnchorDebugUI(arAnchor)
+				containerElement.appendChild(anchorDebugUI.domElement)
+			}
 		}, 1000/60)
 	},
 	remove : function(){
@@ -8142,10 +8364,21 @@ AFRAME.registerComponent('arjs-anchor', {
 		//		honor visibility
 		//////////////////////////////////////////////////////////////////////////////
 		if( _this._arAnchor.parameters.changeMatrixMode === 'modelViewMatrix' ){
+			var wasVisible = _this.el.object3D.visible
 			_this.el.object3D.visible = this._arAnchor.object3d.visible
 		}else if( _this._arAnchor.parameters.changeMatrixMode === 'cameraTransformMatrix' ){
+			var wasVisible = _this.el.sceneEl.object3D.visible
 			_this.el.sceneEl.object3D.visible = this._arAnchor.object3d.visible
 		}else console.assert(false)
+
+		// emit markerFound markerLost
+		if( _this._arAnchor.object3d.visible === true && wasVisible === false ){
+			_this.el.emit('markerFound')
+		}else if( _this._arAnchor.object3d.visible === false && wasVisible === true ){
+			_this.el.emit('markerLost')
+		}
+
+
 	}
 })
 
@@ -8367,6 +8600,10 @@ AFRAME.registerSystem('arjs', {
 			type: 'number',
 			default: -1
 		},
+		deviceId : {
+			type: 'string',
+			default: ''
+		},
 		displayWidth : {
 			type: 'number',
 			default: -1
@@ -8423,6 +8660,7 @@ AFRAME.registerSystem('arjs', {
 		if( this.data.sourceUrl !== '' )		arProfile.sourceParameters.sourceUrl = this.data.sourceUrl
 		if( this.data.sourceWidth !== -1 )		arProfile.sourceParameters.sourceWidth = this.data.sourceWidth
 		if( this.data.sourceHeight !== -1 )		arProfile.sourceParameters.sourceHeight = this.data.sourceHeight
+		if( this.data.deviceId !== '' )		arProfile.sourceParameters.deviceId = this.data.deviceId
 		if( this.data.displayWidth !== -1 )		arProfile.sourceParameters.displayWidth = this.data.displayWidth
 		if( this.data.displayHeight !== -1 )		arProfile.sourceParameters.displayHeight = this.data.displayHeight
 
@@ -8515,7 +8753,7 @@ AFRAME.registerSystem('arjs', {
 				// fixing a-frame css
 				var buttonElement = document.querySelector('.a-enter-vr')
 				if( buttonElement ){
-					buttonElement.style.display = 'none'
+					buttonElement.style.position = 'fixed'
 				}
 			}
 
@@ -8533,6 +8771,10 @@ AFRAME.registerSystem('arjs', {
 					containerElement.setAttribute('style', 'position: fixed; bottom: 10px; width:100%; text-align: center; z-index: 1;color: grey;')
 					document.body.appendChild(containerElement)
 				}
+
+				// create sessionDebugUI
+				var sessionDebugUI = new ARjs.SessionDebugUI(arSession)
+				containerElement.appendChild(sessionDebugUI.domElement)
 			}
 		})
 
